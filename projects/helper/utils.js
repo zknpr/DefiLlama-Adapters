@@ -5,6 +5,7 @@ const http = require('./http')
 const { getEnv } = require('./env')
 const erc20 = require('./abis/erc20.json');
 const { beacon } = require('./chain/rpcProxy');
+const { sliceIntoChunks } = require('./utils/sliceIntoChunks');
 
 async function fetchURL(url) {
   return axios.get(url)
@@ -165,15 +166,6 @@ function getUniqueAddresses(addresses, isCaseSensitive = false) {
 
 const DEBUG_MODE = () => getEnv('LLAMA_DEBUG_MODE')
 const log = sdk.log
-
-function sliceIntoChunks(arr, chunkSize = 100) {
-  const res = [];
-  for (let i = 0; i < arr.length; i += chunkSize) {
-    const chunk = arr.slice(i, i + chunkSize);
-    res.push(chunk);
-  }
-  return res;
-}
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
