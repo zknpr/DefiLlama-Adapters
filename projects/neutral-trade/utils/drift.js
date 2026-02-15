@@ -2101,7 +2101,15 @@ async function getTvl(api, driftVaultAddresses) {
         } else {
           // e.g. HYPE-PERP: no SPL spot mint; skip base leg to avoid "missing token"
           // console.log(`No spot mint for perp market ${position.market_index} (${meta?.name}); skipping base leg`);
-          // TODO: find usd price and api.add(getTokenMintFromMarketIndex(0), usdValue); 
+          const perpMarketAccount = perpAccountMap[position.market_index];
+          if (perpMarketAccount) {
+            const lastOraclePrice = perpMarketAccount.data.readBigInt64LE(72);
+            // position.base_asset_amount is in 10^9 precision
+            // lastOraclePrice is in 10^6 precision
+            // result in 10^6 precision (USDC)
+            const usdValue = (position.base_asset_amount * lastOraclePrice) / BigInt(1e9);
+            api.add(getTokenMintFromMarketIndex(0), usdValue);
+          }
         }
 
         const quoteTokenMint = getTokenMintFromMarketIndex(0);
