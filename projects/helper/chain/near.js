@@ -2,6 +2,7 @@ const ADDRESSES = require('../coreAssets.json')
 const axios = require("axios")
 const { default: BigNumber } = require("bignumber.js")
 const sdk = require('@defillama/sdk')
+const { sliceIntoChunks } = require('../utils')
 
 function transformAddress(addr) {
   const bridgedAssetIdentifier = ".factory.bridge.near";
@@ -82,6 +83,35 @@ async function rpcRequest(payload) {
   throw lastError;
 }
 
+async function batchQuery(calls, batchSize = 100) {
+  const chunks = sliceIntoChunks(calls, batchSize);
+  const results = [];
+  for (const chunk of chunks) {
+    const payload = chunk.map((call, i) => ({
+      jsonrpc: "2.0",
+      id: i,
+      method: "query",
+      params: call
+    }));
+
+    const response = await rpcRequest(payload);
+    const data = response.data;
+    if (!Array.isArray(data)) {
+       throw new Error("Expected array response for batch request");
+    }
+
+    const responseMap = {};
+    data.forEach(item => {
+      responseMap[item.id] = item;
+    });
+
+    chunk.forEach((_, i) => {
+      results.push(responseMap[i]);
+    });
+  }
+  return results;
+}
+
 async function view_account(account_id) {
   const payload = {
     jsonrpc: "2.0",
@@ -151,11 +181,57 @@ function sumSingleBalance(balances, token, balance) {
 
 async function sumTokens({ balances = {}, owners = [], tokens = []}) {
   tokens = tokens.filter(i => i !== 'aurora')
-  await Promise.all(owners.map(i => addTokenBalances(tokens, i, balances)))
-  const bals = await Promise.all(owners.map(view_account))
-  const nearBalance = bals.reduce((a,i) => a + (i.amount/1e24), 0)
-  sdk.util.sumSingleBalance(balances,'coingecko:near',nearBalance)
-  return balances
+
+  const tokenPairs = [];
+  for (const owner of owners) {
+    for (const token of tokens) {
+      tokenPairs.push({ owner, token });
+    }
+  }
+
+  const viewAccountParams = owners.map(account_id => ({
+      request_type: "view_account",
+      finality: "final",
+      account_id
+  }));
+
+  const tokenParams = tokenPairs.map(({ owner, token }) => ({
+      request_type: "call_function",
+      finality: "final",
+      account_id: token,
+      method_name: "ft_balance_of",
+      args_base64: Buffer.from(JSON.stringify({ account_id: owner })).toString("base64")
+  }));
+
+  const [viewAccountResults, tokenResults] = await Promise.all([
+    batchQuery(viewAccountParams),
+    batchQuery(tokenParams)
+  ]);
+
+  let totalNear = 0;
+  viewAccountResults.forEach(res => {
+     if (res && res.error) {
+       throw new Error(`${res.error.message}: ${res.error.data}`);
+     }
+     if (res && res.result) {
+        totalNear += res.result.amount / 1e24;
+     }
+  });
+  if (totalNear > 0)
+    sdk.util.sumSingleBalance(balances, 'coingecko:near', totalNear);
+
+  tokenResults.forEach((res, index) => {
+     if (res && res.error) {
+       throw new Error(`${res.error.message}: ${res.error.data}`);
+     }
+     if (res && res.result && res.result.result) {
+        const { token } = tokenPairs[index];
+        const balanceStr = JSON.parse(Buffer.from(res.result.result).toString());
+        sumSingleBalance(balances, token, balanceStr);
+     }
+  });
+
+  return balances;
 }
 
 module.exports = {
