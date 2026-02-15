@@ -13,11 +13,10 @@ async function tvl({ timestamp }) {
     return acc + BigInt(token_pair.satoshis)
   }, BigInt(0));
 
-  // TODO: Map tokens to CoinGecko identifiers.
-  // Currently, no tokens on the Bitcoin Cash are on CoinGecko.
-
+  // We estimate the token side value by assuming a 50/50 split (CPMM) and doubling the BCH value.
+  // This is done because most tokens on Bitcoin Cash are not currently mapped to CoinGecko.
   return {
-    'bitcoin-cash': Number(total_sats / 100000000n),
+    'bitcoin-cash': Number(total_sats) * 2 / 1e8,
   }
 }
 
