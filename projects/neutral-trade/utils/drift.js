@@ -2099,9 +2099,18 @@ async function getTvl(api, driftVaultAddresses) {
         if (baseTokenMint) {
           api.add(baseTokenMint, baseBalance);
         } else {
-          // e.g. HYPE-PERP: no SPL spot mint; skip base leg to avoid "missing token"
-          // console.log(`No spot mint for perp market ${position.market_index} (${meta?.name}); skipping base leg`);
-          // TODO: find usd price and api.add(getTokenMintFromMarketIndex(0), usdValue); 
+          // e.g. HYPE-PERP: no SPL spot mint; calculate base leg value using oracle price
+          const perpMarketAccount = perpAccountMap[position.market_index];
+          if (perpMarketAccount) {
+            // Read last_oracle_price from AMM.historical_oracle_data.last_oracle_price
+            // Offset: 8 (discriminator) + 32 (pubkey) + 32 (amm.oracle) = 72
+            const lastOraclePrice = perpMarketAccount.data.readBigInt64LE(72);
+            const baseAmount = position.base_asset_amount;
+            // precision: base 1e9, price 1e6. result 1e6 (USDC decimals)
+            // value = amount * price / 1e9
+            const usdValue = (baseAmount * lastOraclePrice) / 1000000000n;
+            api.add(getTokenMintFromMarketIndex(0), usdValue);
+          }
         }
 
         const quoteTokenMint = getTokenMintFromMarketIndex(0);
