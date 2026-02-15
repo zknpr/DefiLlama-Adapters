@@ -2,6 +2,11 @@ const utils = require('../utils')
 
 const OBYTE_HUB_ENDPOINT = "https://obyte.org/api";
 const TOKEN_REGISTRY_AA_ADDRESS = "O6H6ZIFI57X3PLTYHOCVYPP5A553CYFQ";
+const OSWAP_FACTORY_AAS = [
+  "GS23D3GQNNMNJ5TL4Z5PINZ5626WASMA", // Oswap v1
+  "2JYYNOSRFGLI3TBI4FVSE6GFBUAZTTI3", // Oswap v2
+  "DYZOJKX4MJOQRAUPX7K6WCEV5STMKOHI"  // Oswap v2.1
+]
 
 /**
  * @param {number} timestamp - unix timestamp in seconds from epoch of the moment in time for which the balances are requested
@@ -85,18 +90,58 @@ function summingBaseAABalancesToTvl(assetMetadata, exchangeRates) {
 /**
  * @return {Promise<object>} fetches all exchange rates traded on Oswap v1 and v2 plus a few externally defined tokens such as GBYTE-USD or BTC-USD
  */
-async function fetchOswapExchangeRates() {
-  /*
-   * {
-   *   "BTC_USD": 29832,
-   *   "GBYTE_BTC": 0.0004509,
-   *   "GBYTE_USD": 13.4512488,
-   *   "+X9n1ni9OpH/0PFXdmeB4f16wSxSivW4/qcyOt1UEDI=_USD": 88.2777158012621,
-   *   "/1ReF/OW7wud1rqomgWMSeaetx8WjyD6eSTnGurTftU=_USD": 0.22874160911121644
-   * }
-   */
-  const fetched = await utils.fetchURL("https://v2-data.oswap.io/api/v1/exchangeRates")
-  return fetched.data
+async function fetchOswapExchangeRates(timestamp) {
+  if (!timestamp) {
+    /*
+     * {
+     *   "BTC_USD": 29832,
+     *   "GBYTE_BTC": 0.0004509,
+     *   "GBYTE_USD": 13.4512488,
+     *   "+X9n1ni9OpH/0PFXdmeB4f16wSxSivW4/qcyOt1UEDI=_USD": 88.2777158012621,
+     *   "/1ReF/OW7wud1rqomgWMSeaetx8WjyD6eSTnGurTftU=_USD": 0.22874160911121644
+     * }
+     */
+    const fetched = await utils.fetchURL("https://v2-data.oswap.io/api/v1/exchangeRates")
+    return fetched.data
+  }
+
+  const { coins } = (await utils.fetchURL(`https://coins.llama.fi/prices/historical/${timestamp}/coingecko:byteball`)).data
+  const gbytePrice = coins["coingecko:byteball"]?.price
+  if (!gbytePrice) return {}
+
+  const [assetMetadata, ...balancesList] = await Promise.all([
+    fetchOswapAssets(),
+    ...OSWAP_FACTORY_AAS.map(aa => fetchBaseAABalances(timestamp, aa))
+  ])
+
+  const rates = { "GBYTE_USD": gbytePrice }
+
+  balancesList.forEach(balances => {
+    Object.values(balances.addresses).forEach(aa => {
+      const assets = aa.assets
+      const assetIds = Object.keys(assets)
+
+      const reserveAssets = assetIds.filter(id => !assets[id].selfIssued && !assets[id].selfIssuedUncapped && !assets[id].burned)
+
+      if (reserveAssets.length === 2) {
+        const [id1, id2] = reserveAssets
+        const bal1 = assets[id1].balance
+        const bal2 = assets[id2].balance
+
+        if (id1 === 'base') { // GBYTE
+          const decimals = assetMetadata[id2]?.decimals ?? 0
+          const price = (bal1 / 1e9) / (bal2 / Math.pow(10, decimals))
+          rates[`${id2}_USD`] = price * gbytePrice
+        } else if (id2 === 'base') {
+          const decimals = assetMetadata[id1]?.decimals ?? 0
+          const price = (bal2 / 1e9) / (bal1 / Math.pow(10, decimals))
+          rates[`${id1}_USD`] = price * gbytePrice
+        }
+      }
+    })
+  })
+
+  return rates
 }
 
 /**
