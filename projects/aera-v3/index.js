@@ -1,10 +1,16 @@
-const { getMultiDepositorVaults } = require('./utils');
+const { getMultiDepositorVaults, getSingleDepositorVaults } = require('./utils');
 
 async function tvl(api) {
     const multiDepositorVaults = await getMultiDepositorVaults(api);
+    const singleDepositorVaults = await getSingleDepositorVaults(api);
+
+    // Compute TVL for single depositor vaults
+    await Promise.all(singleDepositorVaults.map(async ({ vault, feeToken }) => {
+        const bal = await api.call({  abi: 'erc20:balanceOf', target: feeToken, params: [vault] });
+        api.add(feeToken, bal);
+    }));
 
     // Compute TVL for multi depositor vaults
-    // TODO: Add single depositor vaults
     await Promise.all(multiDepositorVaults.map(async (vault) => {
         const [totalSupply, feeCalculator, decimals ] = await Promise.all([
             api.call({
