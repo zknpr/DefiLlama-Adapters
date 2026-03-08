@@ -6,8 +6,7 @@ const { getUniqueAddresses } = require('../helper/utils')
 
 const blacklistedTokens = [
   ADDRESSES.ethereum.sUSD_OLD,
-  // TODO: We shouldn't need to lowercase here
-  ADDRESSES.ethereum.SAI.toLowerCase(),
+  ADDRESSES.ethereum.SAI,
   ADDRESSES.ethereum.MKR,
 ]
 
@@ -26,7 +25,8 @@ const config = {
 }
 
 async function getTokens(api, owners, isVesting) {
-  let tokens = (await Promise.all(owners.map(i => covalentGetTokens(i, api, { onlyWhitelisted: false, })))).flat().filter(i => !blacklistedTokens.includes(i))
+  const lowerBlacklistedTokens = blacklistedTokens.map(t => t.toLowerCase())
+  let tokens = (await Promise.all(owners.map(i => covalentGetTokens(i, api, { onlyWhitelisted: false, })))).flat().filter(i => !lowerBlacklistedTokens.includes(i.toLowerCase()))
   tokens = getUniqueAddresses(tokens)
   const symbols = await api.multiCall({ abi: 'erc20:symbol', calls: tokens, permitFailure: true })
 
