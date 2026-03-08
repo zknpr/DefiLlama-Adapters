@@ -26,10 +26,7 @@ module.exports = {
     },
     staking: async (api) => {
       const get_staking_data = await call({ target: SCALE_STAKING_ADDRESS, abi: "get_staking_data" })
-      // TODO: move this to price server
-      const price_response = await get(`https://tonapi.io/v2/rates?tokens=${SCALE}&currencies=ton`)
-      const scale_price = price_response.rates[SCALE].prices.TON
-      return api.add(ADDRESSES.ton.TON, parseInt(get_staking_data[3]) * scale_price)
+      api.add(SCALE, parseInt(get_staking_data[3]))
     }
   }
 }
