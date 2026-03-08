@@ -141,13 +141,11 @@ async function beraTvl(api) {
     api.add(vault.token1, token1Balance)
   }
 
-  for (const vault of BERA_BORROW_VAULTS) {
-    const vaultBalance = await api.call({
-      abi: "function totalAssets() view returns (uint256 totalAssets)",
-      target: vault.address,
-    })
-    api.add(vault.asset, vaultBalance)
-  }
+  const beraBorrowVaultBalances = await api.multiCall({
+    abi: "function totalAssets() view returns (uint256 totalAssets)",
+    calls: BERA_BORROW_VAULTS.map(vault => vault.address),
+  })
+  BERA_BORROW_VAULTS.forEach((vault, i) => api.add(vault.asset, beraBorrowVaultBalances[i]))
 
   for (const vault of BURR_BEAR_VAULTS) {
     const vaultBalance = await api.call({
