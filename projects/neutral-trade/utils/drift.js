@@ -1928,6 +1928,14 @@ function processPerpPosition(position) {
 }
 
 
+function getPerpMarketOraclePrice(accountInfo) {
+  if (!accountInfo) {
+    throw new Error(`No account info found for market`);
+  }
+  return accountInfo.data.readBigInt64LE(72);
+}
+
+
 function getPerpMarketFundingRates(accountInfo) {
   if (!accountInfo) {
     throw new Error(`No account info found for market`);
@@ -2099,9 +2107,9 @@ async function getTvl(api, driftVaultAddresses) {
         if (baseTokenMint) {
           api.add(baseTokenMint, baseBalance);
         } else {
-          // e.g. HYPE-PERP: no SPL spot mint; skip base leg to avoid "missing token"
-          // console.log(`No spot mint for perp market ${position.market_index} (${meta?.name}); skipping base leg`);
-          // TODO: find usd price and api.add(getTokenMintFromMarketIndex(0), usdValue); 
+          const oraclePrice = getPerpMarketOraclePrice(perpAccountMap[position.market_index]);
+          const usdValue = (position.base_asset_amount * oraclePrice) / BigInt(10 ** 9);
+          api.add(getTokenMintFromMarketIndex(0), usdValue);
         }
 
         const quoteTokenMint = getTokenMintFromMarketIndex(0);
