@@ -1,7 +1,7 @@
 
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { sliceIntoChunks } = require('./utils/sliceIntoChunks');
+const { sliceIntoChunks } = require('./utils');
 
 describe('sliceIntoChunks', () => {
   it('should split array into chunks of specified size', () => {
