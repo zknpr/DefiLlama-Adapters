@@ -38,3 +38,4 @@ function getStackMessage(stack) {
 }
 
 module.exports = handleError
+module.exports.getStackMessage = getStackMessage
