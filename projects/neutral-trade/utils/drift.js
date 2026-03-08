@@ -1953,7 +1953,7 @@ function deserializeUserPositions(accountInfo) {
 
   // Deserialize spot positions
   const spotPositions = [];
-  let offset = 104; // Anchor discriminator (8) + Skip authority(32) + delegate(32) + name(32) 
+  let offset = 104; // Anchor discriminator (8) + Skip authority(32) + delegate(32) + name(32)
 
   for (let i = 0; i < 8; i++) {
     const spotPosition = {
@@ -2028,19 +2028,19 @@ async function fetchVaultUserAddressesWithOffset(addresses, offset) {
 /**
  * Vault Equity Calculation Formula:
  * VaultEquity = NetSpotValue + UnrealizedPnL
- * 
+ *
  * Where:
  * 1. NetSpotValue = Σ(spotPosition.scaledBalance * spotMarketPrice * direction)
  *    - spotPosition.scaledBalance: The size of the spot position
  *    - spotMarketPrice: Current market price of the asset
  *    - direction: 1 for deposits (longs), -1 for borrows (shorts)
- * 
+ *
  * 2. UnrealizedPnL = Σ(perpPosition.baseAssetAmount * oraclePrice + perpPosition.quoteAssetAmount + fundingPnL)
  *    For each perpetual position:
  *    - baseAssetAmount * oraclePrice: Current value of the base asset position (e.g., BTC, ETH, SOL)
  *    - quoteAssetAmount: Amount of quote currency (USDC) in the position
  *    - fundingPnL: (market.amm.cumulativeFundingRate - position.lastCumulativeFundingRate) * position.baseAssetAmount / FUNDING_RATE_PRECISION
- * 
+ *
  */
 async function getTvl(api, driftVaultAddresses) {
   const { vaultUserAddresses } = await fetchVaultUserAddressesWithOffset(driftVaultAddresses, 168);
@@ -2059,7 +2059,7 @@ async function getTvl(api, driftVaultAddresses) {
     perpPositions?.forEach(pos => allPerpIndices.add(pos.market_index));
   });
 
-  // Batch fetch 
+  // Batch fetch
   const allKeys = [
     ...[...allSpotIndices].map(index => getVaultPublicKey('spot_market', index)),
     ...[...allPerpIndices].map(index => getVaultPublicKey('perp_market', index)),
@@ -2091,7 +2091,7 @@ async function getTvl(api, driftVaultAddresses) {
     }
 
     if (perpPositions?.length) {
-      perpPositions.forEach(async position => {
+      perpPositions.forEach(position => {
         const meta = PERP_MARKETS[position.market_index];
         const baseTokenMint = meta?.mint ?? null;
 
@@ -2100,8 +2100,14 @@ async function getTvl(api, driftVaultAddresses) {
           api.add(baseTokenMint, baseBalance);
         } else {
           // e.g. HYPE-PERP: no SPL spot mint; skip base leg to avoid "missing token"
-          // console.log(`No spot mint for perp market ${position.market_index} (${meta?.name}); skipping base leg`);
-          // TODO: find usd price and api.add(getTokenMintFromMarketIndex(0), usdValue); 
+          const accountInfo = perpAccountMap[position.market_index];
+          if (accountInfo && accountInfo.data) {
+            const lastOraclePrice = accountInfo.data.readBigInt64LE(72);
+            // position.base_asset_amount is precision 10^9, last_oracle_price is 10^6
+            // dividing by 10^9 gives us USD value in 10^6 (which perfectly matches quoteTokenMint / USDC precision)
+            const usdValue = (position.base_asset_amount * lastOraclePrice) / 1000000000n;
+            api.add(getTokenMintFromMarketIndex(0), usdValue);
+          }
         }
 
         const quoteTokenMint = getTokenMintFromMarketIndex(0);
