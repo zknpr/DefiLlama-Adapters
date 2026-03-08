@@ -8,6 +8,11 @@ const {
 const { getUserMasterChefBalances } = require("../helper/masterchef");
 const apps = require("./apps.json");
 
+const getLPAddressMap = {
+  "identity": (a) => a,
+  "first": (a) => a[0],
+};
+
 async function defaultTVL({ balances, chain, block, app }) {
   const farms = await getUnoFarms({ chain, block, factory: app.factory });
   const promises = [];
@@ -22,7 +27,7 @@ async function defaultTVL({ balances, chain, block, app }) {
           block,
           chain,
           poolInfoABI: app.poolInfoABI[k],
-          getLPAddress: app.getLPAddress[k] ? eval(app.getLPAddress[k]) : null,
+          getLPAddress: app.getLPAddress[k] ? getLPAddressMap[app.getLPAddress[k]] : null,
         })
       );
     }
