@@ -66,21 +66,21 @@ const fetchPool2 = async (api) => {
   const decimal = 18;
 
   let klayswapPool2Tvl = BigNumber(0);
-  for (let pool of KLAYSWAP_POOLS) {
-    const  value = await api.call({
-      target: HELPER_ADDR,
-      params: [pool[`address`]],
-      abi: ABI.abi.getKlayswapLpFarmTVL
-    })
+  const klayswapValues = await api.multiCall({
+    target: HELPER_ADDR,
+    calls: KLAYSWAP_POOLS.map(pool => pool[`address`]),
+    abi: ABI.abi.getKlayswapLpFarmTVL
+  });
+  for (let value of klayswapValues) {
     klayswapPool2Tvl = klayswapPool2Tvl.plus(value);
   }
   let kokonutPool2Tvl = BigNumber(0);
-  for (let pool of KOKONUT_POOLS) {
-    const  value = await api.call({
-      target: HELPER_ADDR,
-      params: [pool[`address`]],
-      abi: ABI.abi.getKokonutLpFarmTVL
-    })
+  const kokonutValues = await api.multiCall({
+    target: HELPER_ADDR,
+    calls: KOKONUT_POOLS.map(pool => pool[`address`]),
+    abi: ABI.abi.getKokonutLpFarmTVL
+  });
+  for (let value of kokonutValues) {
     kokonutPool2Tvl = kokonutPool2Tvl.plus(value);
   }
   const totalPool2 = klayswapPool2Tvl.plus(kokonutPool2Tvl).dividedBy(BigNumber(10 ** (decimal * 2)));
