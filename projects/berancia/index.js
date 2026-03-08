@@ -83,52 +83,89 @@ const BURR_BEAR_VAULTS = [
 ]
 
 async function beraTvl(api) {
-  for (const vault of BERA_KODIAK_VAULTS) {
-    // Get total token assets in kodiak island
-    const {amount0Current, amount1Current} = await api.call({
+  const [
+    kodiakUnderlyingBalances,
+    kodiakVaultBalances,
+    kodiakTotalSupplies,
+    bullaVaultBalances,
+    bullaTotalSupplies,
+    bullaTotalAmounts,
+    bullaToken0Amounts,
+    bullaToken1Amounts,
+    borrowVaultBalances,
+    burrVaultBalances,
+    burrTotalSupplies,
+    burrPoolTokens
+  ] = await Promise.all([
+    api.multiCall({
       abi: "function getUnderlyingBalances() view returns (uint256 amount0Current, uint256 amount1Current)",
-      target: vault.kodiakIsland
-    })
-    const vaultBalance = await api.call({
+      calls: BERA_KODIAK_VAULTS.map(v => v.kodiakIsland)
+    }),
+    api.multiCall({
       abi: "function totalAssets() view returns (uint256 totalAssets)",
-      target: vault.address,
-    })
-    const totalSupply = await api.call({
+      calls: BERA_KODIAK_VAULTS.map(v => v.address)
+    }),
+    api.multiCall({
       abi: "erc20:totalSupply",
-      target: vault.kodiakIsland
+      calls: BERA_KODIAK_VAULTS.map(v => v.kodiakIsland)
+    }),
+    api.multiCall({
+      abi: "function totalAssets() view returns (uint256 totalAssets)",
+      calls: BULLA_VAULTS.map(v => v.address)
+    }),
+    api.multiCall({
+      abi: "erc20:totalSupply",
+      calls: BULLA_VAULTS.map(v => v.asset)
+    }),
+    api.multiCall({
+      abi: "function getTotalAmounts() view returns (uint256 total0, uint256 total1)",
+      calls: BULLA_VAULTS.map(v => v.asset)
+    }),
+    api.multiCall({
+      abi: "erc20:balanceOf",
+      calls: BULLA_VAULTS.map(v => ({ target: v.token0, params: [v.asset] }))
+    }),
+    api.multiCall({
+      abi: "erc20:balanceOf",
+      calls: BULLA_VAULTS.map(v => ({ target: v.token1, params: [v.asset] }))
+    }),
+    api.multiCall({
+      abi: "function totalAssets() view returns (uint256 totalAssets)",
+      calls: BERA_BORROW_VAULTS.map(v => v.address)
+    }),
+    api.multiCall({
+      abi: "function totalAssets() view returns (uint256 totalAssets)",
+      calls: BURR_BEAR_VAULTS.map(v => v.address)
+    }),
+    api.multiCall({
+      abi: "function getActualSupply() view returns (uint256 totalAssets)",
+      calls: BURR_BEAR_VAULTS.map(v => v.asset)
+    }),
+    api.multiCall({
+      abi: "function getPoolTokens(bytes32 poolId) view returns (address[] tokens, uint256[] balances, uint256 lastChangeBlock)",
+      calls: BURR_BEAR_VAULTS.map(v => ({ target: v.vault, params: [v.poolId] }))
     })
+  ])
 
+  BERA_KODIAK_VAULTS.forEach((vault, i) => {
     // Calculate vault assets based on island assets and vault balance
+    const {amount0Current, amount1Current} = kodiakUnderlyingBalances[i]
+    const vaultBalance = kodiakVaultBalances[i]
+    const totalSupply = kodiakTotalSupplies[i]
+
     const token0Balance = amount0Current * vaultBalance / totalSupply
     const token1Balance = amount1Current * vaultBalance / totalSupply
 
     api.add(vault.token0, token0Balance)
     api.add(vault.token1, token1Balance)
-  }
+  })
 
-  for (const vault of BULLA_VAULTS) {
-    const vaultBalance = await api.call({
-      abi: "function totalAssets() view returns (uint256 totalAssets)",
-      target: vault.address,
-    })
-    const totalSupply = await api.call({
-      abi: "erc20:totalSupply",
-      target: vault.asset
-    })
-    const {total0, total1} = await api.call({
-      abi: "function getTotalAmounts() view returns (uint256 total0, uint256 total1)",
-      target: vault.asset
-    })
-    const token0AmountRaw = await api.call({
-      abi: "erc20:balanceOf",
-      target: vault.token0,
-      params: [vault.asset]
-    })
-    const token1AmountRaw = await api.call({
-      abi: "erc20:balanceOf",
-      target: vault.token1,
-      params: [vault.asset]
-    })
+  BULLA_VAULTS.forEach((vault, i) => {
+    const vaultBalance = bullaVaultBalances[i]
+    const totalSupply = bullaTotalSupplies[i]
+    const {total0, total1} = bullaTotalAmounts[i]
+    const token0AmountRaw = bullaToken0Amounts[i]
+    const token1AmountRaw = bullaToken1Amounts[i]
     
     // Calculate vault assets based on island assets and vault balance
     const poolToken0Total = +total0+(+token0AmountRaw)
@@ -139,41 +176,25 @@ async function beraTvl(api) {
 
     api.add(vault.token0, token0Balance)
     api.add(vault.token1, token1Balance)
-  }
+  })
 
-  for (const vault of BERA_BORROW_VAULTS) {
-    const vaultBalance = await api.call({
-      abi: "function totalAssets() view returns (uint256 totalAssets)",
-      target: vault.address,
-    })
-    api.add(vault.asset, vaultBalance)
-  }
+  BERA_BORROW_VAULTS.forEach((vault, i) => {
+    api.add(vault.asset, borrowVaultBalances[i])
+  })
 
-  for (const vault of BURR_BEAR_VAULTS) {
-    const vaultBalance = await api.call({
-      abi: "function totalAssets() view returns (uint256 totalAssets)",
-      target: vault.address,
-    })
-
-    const totalSupply = await api.call({
-      abi: "function getActualSupply() view returns (uint256 totalAssets)",
-      target: vault.asset
-    })
-
-    const [tokens, balances] =  await api.call({
-      abi: "function getPoolTokens(bytes32 poolId) view returns (address[] tokens, uint256[] balances, uint256 lastChangeBlock)",
-      target: vault.vault,
-      params: [vault.poolId]
-    })
+  BURR_BEAR_VAULTS.forEach((vault, i) => {
+    const vaultBalance = burrVaultBalances[i]
+    const totalSupply = burrTotalSupplies[i]
+    const [tokens, balances] = burrPoolTokens[i]
     
-    for (let i = 0; i<tokens.length; i++) {
-      if (tokens[i]==vault.asset) {
+    for (let j = 0; j<tokens.length; j++) {
+      if (tokens[j]==vault.asset) {
         continue
       }
-      const tokenBalance = balances[i] * vaultBalance / totalSupply
-      api.add(tokens[i], tokenBalance)
+      const tokenBalance = balances[j] * vaultBalance / totalSupply
+      api.add(tokens[j], tokenBalance)
     }
-  }
+  })
 }
 
 module.exports = {
