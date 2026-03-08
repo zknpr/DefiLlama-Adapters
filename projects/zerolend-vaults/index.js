@@ -17,7 +17,7 @@ const configs = {
     ],
   },
   linea: {
-    // eulerVaultOwners: multisigs, // todo: add this back in once it is supported by the API
+    eulerVaultOwners: multisigs,
     euler: [
       '0x14efcc1ae56e2ff75204ef2fb0de43378d0beada',
       '0x085f80df643307e04f23281f6fdbfaa13865e852',
