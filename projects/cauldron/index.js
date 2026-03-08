@@ -5,32 +5,20 @@
 
 const axios = require("axios");
 
-const TOKEN_MAPPINGS = {
-  // Example mapping:
-  // 'token_id_hex': { coingeckoId: 'coingecko-id', decimals: 8 },
-};
-
 async function tvl({ timestamp }) {
   const { data } = await axios.get(`http://rostrum.cauldron.quest:8000/cauldron/tvl/${timestamp}`);
 
-  const balances = {};
-  let total_sats = BigInt(0);
-
   // Every token pair is matched with BCH. We collect total value locked on the BCH side of the contract.
-  data.forEach((token_pair) => {
-    total_sats += BigInt(token_pair.satoshis);
+  const total_sats = data.reduce((acc, token_pair) => {
+    return acc + BigInt(token_pair.satoshis)
+  }, BigInt(0));
 
-    if (TOKEN_MAPPINGS[token_pair.token_id]) {
-      const { coingeckoId, decimals } = TOKEN_MAPPINGS[token_pair.token_id];
-      const amount = Number(token_pair.token_amount) / (10 ** decimals);
-      const key = `coingecko:${coingeckoId}`;
-      balances[key] = (balances[key] || 0) + amount;
-    }
-  });
+  // TODO: Map tokens to CoinGecko identifiers.
+  // Currently, no tokens on the Bitcoin Cash are on CoinGecko.
 
-  balances['bitcoin-cash'] = Number(total_sats) / 1e8;
-
-  return balances;
+  return {
+    'bitcoin-cash': Number(total_sats / 100000000n),
+  }
 }
 
 module.exports = {
