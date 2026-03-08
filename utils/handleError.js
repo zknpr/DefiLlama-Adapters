@@ -37,4 +37,5 @@ function getStackMessage(stack) {
   return message
 }
 
-module.exports = handleError
+module.exports = handleError;
+module.exports.getStackMessage = getStackMessage;
