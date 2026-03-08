@@ -81,14 +81,14 @@ Object.keys(config).forEach((chain) => {
         }
       }
 
-      for (const psm of config[chain].psmList) {
-        const underlyingToken = await api.call({
-          abi: "function underlying() view returns (address)",
-          target: psm,
-        });
+      const underlyingTokens = await api.multiCall({
+        abi: "function underlying() view returns (address)",
+        calls: config[chain].psmList,
+      });
 
-        tokensAndOwners.push([underlyingToken, psm]);
-      }
+      config[chain].psmList.forEach((psm, i) => {
+        tokensAndOwners.push([underlyingTokens[i], psm]);
+      });
 
       return api.sumTokens({ tokensAndOwners });
     },
