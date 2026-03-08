@@ -11,10 +11,10 @@ const config = {
 async function getCollateralsTvl(api) {
   const networkConfig = config[api.chain]
   if (!networkConfig) return
-  for (const [, tokenConfig] of Object.entries(networkConfig)) {
-    const collaterals = await api.call({ abi: 'address[]:listCollateral', target: tokenConfig.collateralVault })
-    await api.sumTokens({ owner: tokenConfig.collateralVault, tokens: collaterals })
-  }
+  const vaults = Object.values(networkConfig).map(c => c.collateralVault)
+  const collaterals = await api.multiCall({ abi: 'address[]:listCollateral', calls: vaults })
+  const tokensAndOwners = collaterals.flatMap((tokens, i) => tokens.map(t => [t, vaults[i]]))
+  return api.sumTokens({ tokensAndOwners })
 }
 
 module.exports = {
