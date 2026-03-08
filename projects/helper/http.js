@@ -2,11 +2,6 @@ const axios = require("axios")
 const { request, GraphQLClient, } = require("graphql-request")
 const sdk = require('@defillama/sdk')
 const { getEnv } = require('./env')
-const https = require('https')
-
-const agent = new https.Agent({
-  rejectUnauthorized: false,
-})
 
 const getCacheData = {}
 
@@ -116,9 +111,13 @@ async function proxiedFetch(url) {
 
   const [host, username, password] = authInfo.split(':')
 
-  const { data } = await axios
+  const client = axios.create({
+    httpsAgent: new https.Agent({
+      rejectUnauthorized: false,
+    }),
+  });
+  const { data } = await client
     .get(url.toString(), {
-      httpsAgent: agent,
       proxy: {
         protocol: "https",
         host,
